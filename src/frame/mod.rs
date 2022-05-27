@@ -32,6 +32,7 @@ pub mod session;
 pub mod staking;
 pub mod sudo;
 pub mod system;
+pub mod oracle;
 
 /// Store trait.
 pub trait Store<T>: Encode {

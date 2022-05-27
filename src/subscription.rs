@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
-use jsonrpsee_ws_client::WsSubscription as Subscription;
+use jsonrpsee_types::Subscription;
 use sp_core::{
     storage::{
         StorageChangeSet,
@@ -95,15 +95,15 @@ impl<'a, T: Runtime> EventSubscription<'a, T> {
                 return None
             }
             // always return None if subscription has closed
-            let change_set = self.subscription.next().await?;
+            let change_set = self.subscription.next().await.ok()?.unwrap();
             if let Some(hash) = self.block.as_ref() {
-                if &change_set.block == hash {
+                if &change_set.block.clone() == hash {
                     self.finished = true;
                 } else {
                     continue
                 }
             }
-            for (_key, data) in change_set.changes {
+            for (_key, data) in change_set.changes.clone() {
                 if let Some(data) = data {
                     let raw_events = match self.decoder.decode_events(&mut &data.0[..]) {
                         Ok(events) => events,
@@ -176,7 +176,7 @@ impl<T: Runtime> FinalizedEventStorageSubscription<T> {
             if let Some(storage_change) = self.storage_changes.pop_front() {
                 return Some(storage_change)
             }
-            let header: T::Header = self.subscription.next().await?;
+            let header: T::Header = self.subscription.next().await.ok()?.unwrap();
             self.storage_changes.extend(
                 self.rpc
                     .query_storage_at(&[self.storage_key.clone()], Some(header.hash()))
@@ -197,10 +197,10 @@ pub enum EventStorageSubscription<T: Runtime> {
 
 impl<T: Runtime> EventStorageSubscription<T> {
     /// Gets the next change_set from the subscription.
-    pub async fn next(&mut self) -> Option<StorageChangeSet<T::Hash>> {
+    pub async fn next(&mut self) -> Result<Option<StorageChangeSet<T::Hash>>, jsonrpsee_types::error::Error> {
         match self {
             Self::Imported(event_sub) => event_sub.next().await,
-            Self::Finalized(event_sub) => event_sub.next().await,
+            Self::Finalized(event_sub) => Ok(event_sub.next().await),
         }
     }
 }

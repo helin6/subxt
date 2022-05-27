@@ -27,7 +27,13 @@ use codec::{
     Error as CodecError,
 };
 
-use frame_metadata::{decode_different::DecodeDifferent, RuntimeMetadata, RuntimeMetadataPrefixed, v12::StorageEntryModifier, v12::StorageEntryType, v12::StorageHasher, META_RESERVED, StorageEntryMetadata, PalletConstantMetadata};
+use frame_metadata::{decode_different::DecodeDifferent,
+                     RuntimeMetadata,
+                     RuntimeMetadataPrefixed,
+                     v12::StorageEntryModifier,
+                     v12::StorageEntryType,
+                     v12::StorageHasher,
+                     META_RESERVED};
 use frame_metadata::v12::EventMetadata;
 use sp_core::storage::StorageKey;
 

@@ -34,20 +34,16 @@ use frame_metadata::RuntimeMetadataPrefixed;
 use jsonrpsee_http_client::HttpClient;
 use jsonrpsee_types::{
     error::Error as RpcError,
-    jsonrpc::{
-        to_value as to_json_value,
-        DeserializeOwned,
-        Params,
-    },
+    v2::params::JsonRpcParams as Params,
+    to_json_value,
+    DeserializeOwned,
     traits::{
         Client,
         SubscriptionClient,
     },
 };
-use jsonrpsee_ws_client::{
-    WsClient,
-    WsSubscription as Subscription,
-};
+use jsonrpsee_ws_client::WsClient;
+use jsonrpsee_types::Subscription;
 use serde::{
     Deserialize,
     Serialize,
@@ -179,7 +175,7 @@ impl RpcClient {
     pub async fn request<T: DeserializeOwned>(
         &self,
         method: &str,
-        params: Params,
+        params: Params<'_>,
     ) -> Result<T, Error> {
         match self {
             Self::WebSocket(inner) => {
@@ -195,7 +191,7 @@ impl RpcClient {
     pub async fn subscribe<T: DeserializeOwned>(
         &self,
         subscribe_method: &str,
-        params: Params,
+        params: Params<'_>,
         unsubscribe_method: &str,
     ) -> Result<Subscription<T>, Error> {
         match self {
@@ -370,10 +366,9 @@ impl<T: Runtime> Rpc<T> {
     pub async fn metadata(&self) -> Result<Metadata, Error> {
         let bytes: Bytes = self
             .client
-            .request("state_getMetadata", Params::None)
+            .request("state_getMetadata", Params::NoParams)
             .await?;
         let meta: RuntimeMetadataPrefixed = Decode::decode(&mut &bytes[..])?;
-        println!("get meta: {:?}", meta);
         let metadata: Metadata = meta.try_into()?;
         Ok(metadata)
     }
@@ -382,7 +377,7 @@ impl<T: Runtime> Rpc<T> {
     pub async fn system_properties(&self) -> Result<SystemProperties, Error> {
         Ok(self
             .client
-            .request("system_properties", Params::None)
+            .request("system_properties", Params::NoParams)
             .await?)
     }
 
@@ -414,7 +409,7 @@ impl<T: Runtime> Rpc<T> {
     pub async fn finalized_head(&self) -> Result<T::Hash, Error> {
         let hash = self
             .client
-            .request("chain_getFinalizedHead", Params::None)
+            .request("chain_getFinalizedHead", Params::NoParams)
             .await?;
         Ok(hash)
     }
@@ -486,7 +481,7 @@ impl<T: Runtime> Rpc<T> {
             .client
             .subscribe(
                 "chain_subscribeNewHeads",
-                Params::None,
+                Params::NoParams,
                 "chain_unsubscribeNewHeads",
             )
             .await?;
@@ -502,7 +497,7 @@ impl<T: Runtime> Rpc<T> {
             .client
             .subscribe(
                 "chain_subscribeFinalizedHeads",
-                Params::None,
+                Params::NoParams,
                 "chain_unsubscribeFinalizedHeads",
             )
             .await?;
@@ -556,35 +551,37 @@ impl<T: Runtime> Rpc<T> {
         }?;
         let mut xt_sub = self.watch_extrinsic(extrinsic).await?;
 
-        while let Some(status) = xt_sub.next().await {
+        while let Ok(status) = xt_sub.next().await {
             log::info!("received status {:?}", status);
-            match status {
-                // ignore in progress extrinsic for now
-                TransactionStatus::Future
-                | TransactionStatus::Ready
-                | TransactionStatus::Broadcast(_) => continue,
-                TransactionStatus::InBlock(block_hash) => {
-                    if self.accept_weak_inclusion {
+            if let Some(status) =status {
+                match status {
+                    // ignore in progress extrinsic for now
+                    TransactionStatus::Future
+                    | TransactionStatus::Ready
+                    | TransactionStatus::Broadcast(_) => continue,
+                    TransactionStatus::InBlock(block_hash) => {
+                        if self.accept_weak_inclusion {
+                            return self
+                                .process_block(events_sub, decoder, block_hash, ext_hash)
+                                .await
+                        }
+                        continue
+                    }
+                    TransactionStatus::Invalid => return Err("Extrinsic Invalid".into()),
+                    TransactionStatus::Usurped(_) => return Err("Extrinsic Usurped".into()),
+                    TransactionStatus::Dropped => return Err("Extrinsic Dropped".into()),
+                    TransactionStatus::Retracted(_) => {
+                        return Err("Extrinsic Retracted".into())
+                    }
+                    TransactionStatus::Finalized(block_hash) => {
+                        // read finalized blocks by default
                         return self
                             .process_block(events_sub, decoder, block_hash, ext_hash)
                             .await
                     }
-                    continue
-                }
-                TransactionStatus::Invalid => return Err("Extrinsic Invalid".into()),
-                TransactionStatus::Usurped(_) => return Err("Extrinsic Usurped".into()),
-                TransactionStatus::Dropped => return Err("Extrinsic Dropped".into()),
-                TransactionStatus::Retracted(_) => {
-                    return Err("Extrinsic Retracted".into())
-                }
-                TransactionStatus::Finalized(block_hash) => {
-                    // read finalized blocks by default
-                    return self
-                        .process_block(events_sub, decoder, block_hash, ext_hash)
-                        .await
-                }
-                TransactionStatus::FinalityTimeout(_) => {
-                    return Err("Extrinsic FinalityTimeout".into())
+                    TransactionStatus::FinalityTimeout(_) => {
+                        return Err("Extrinsic FinalityTimeout".into())
+                    }
                 }
             }
         }
@@ -655,7 +652,7 @@ impl<T: Runtime> Rpc<T> {
     pub async fn rotate_keys(&self) -> Result<Bytes, Error> {
         Ok(self
             .client
-            .request("author_rotateKeys", Params::None)
+            .request("author_rotateKeys", Params::NoParams)
             .await?)
     }
 
