@@ -74,6 +74,7 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
+// use scale_info::{form::{Form, MetaForm}};
 
 mod error;
 mod events;
@@ -208,18 +209,22 @@ impl<T: Runtime> ClientBuilder<T> {
     /// Creates a new Client.
     pub async fn build<'a>(self) -> Result<Client<T>, Error> {
         let client = if let Some(client) = self.client {
+            println!("have client!!!");
             client
         } else {
+            println!("default client!!!");
             let url = self.url.as_deref().unwrap_or("ws://127.0.0.1:9944");
             if url.starts_with("ws://") || url.starts_with("wss://") {
                 let mut config = WsConfig::with_url(&url);
                 config.max_notifs_per_subscription = 4096;
                 RpcClient::WebSocket(Arc::new(WsClient::new(config).await?))
             } else {
+                println!("bbbbbbbbbbbbbbbbbb!!!");
                 let client = HttpClient::new(url, HttpConfig::default())?;
                 RpcClient::Http(Arc::new(client))
             }
         };
+        println!("get client!!!");
         let mut rpc = Rpc::new(client);
         if self.accept_weak_inclusion {
             rpc.accept_weak_inclusion();
@@ -232,7 +237,7 @@ impl<T: Runtime> ClientBuilder<T> {
         )
         .await;
         let metadata = metadata?;
-
+        println!("get metadata: {:?}", metadata);
         if let Err(missing) = self.event_type_registry.check_missing_type_sizes(&metadata)
         {
             if self.skip_type_sizes_check {

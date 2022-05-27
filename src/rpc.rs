@@ -373,6 +373,7 @@ impl<T: Runtime> Rpc<T> {
             .request("state_getMetadata", Params::None)
             .await?;
         let meta: RuntimeMetadataPrefixed = Decode::decode(&mut &bytes[..])?;
+        println!("get meta: {:?}", meta);
         let metadata: Metadata = meta.try_into()?;
         Ok(metadata)
     }

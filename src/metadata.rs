@@ -27,15 +27,8 @@ use codec::{
     Error as CodecError,
 };
 
-use frame_metadata::{
-    DecodeDifferent,
-    RuntimeMetadata,
-    RuntimeMetadataPrefixed,
-    StorageEntryModifier,
-    StorageEntryType,
-    StorageHasher,
-    META_RESERVED,
-};
+use frame_metadata::{decode_different::DecodeDifferent, RuntimeMetadata, RuntimeMetadataPrefixed, v12::StorageEntryModifier, v12::StorageEntryType, v12::StorageHasher, META_RESERVED, StorageEntryMetadata, PalletConstantMetadata};
+use frame_metadata::v12::EventMetadata;
 use sp_core::storage::StorageKey;
 
 use crate::Encoded;
@@ -629,7 +622,7 @@ fn convert<B: 'static, O: 'static>(
 }
 
 fn convert_event(
-    event: frame_metadata::EventMetadata,
+    event: EventMetadata,
 ) -> Result<ModuleEventMetadata, ConversionError> {
     let name = convert(event.name)?;
     let mut arguments = Vec::new();
@@ -643,9 +636,10 @@ fn convert_event(
 fn convert_entry(
     module_prefix: String,
     storage_prefix: String,
-    entry: frame_metadata::StorageEntryMetadata,
+    entry: frame_metadata::v12::StorageEntryMetadata,
 ) -> Result<StorageMetadata, ConversionError> {
     let default = convert(entry.default)?;
+    // let default = entry.default;
     Ok(StorageMetadata {
         module_prefix,
         storage_prefix,
@@ -656,13 +650,13 @@ fn convert_entry(
 }
 
 fn convert_error(
-    error: frame_metadata::ErrorMetadata,
+    error: frame_metadata::v12::ErrorMetadata,
 ) -> Result<String, ConversionError> {
     convert(error.name)
 }
 
 fn convert_constant(
-    constant: frame_metadata::ModuleConstantMetadata,
+    constant: frame_metadata::v12::ModuleConstantMetadata,
 ) -> Result<ModuleConstantMetadata, ConversionError> {
     let name = convert(constant.name)?;
     let ty = convert(constant.ty)?;
